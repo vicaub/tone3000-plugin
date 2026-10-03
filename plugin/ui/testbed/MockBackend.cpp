@@ -131,11 +131,21 @@ MockBackend::MockBackend(const juce::var& scenario)
                                           : obj({{"frequency", 0}, {"confidence", 0}, {"level", -60}})),
       autoMeasure_(obj({{"state", "listening"}})),
       version_(scenario["version"].isVoid() ? "1.4.2" : scenario["version"].toString()) {
+  hostedPlugins_ = scenario["hostedPlugins"];
   if (!chain_["revision"].isInt() && !chain_["revision"].isDouble())
     chain_.getDynamicObject()->setProperty("revision", 1);
 }
 
 MockBackend::~MockBackend() = default;
+
+std::vector<Backend::HostedPluginInfo> MockBackend::hostedPlugins() {
+  std::vector<HostedPluginInfo> out;
+  if (const auto* list = hostedPlugins_.getArray())
+    for (const auto& p : *list)
+      out.push_back({p["identifier"].toString(), p["name"].toString(), p["vendor"].toString(),
+                     p["format"].toString()});
+  return out;
+}
 
 juce::RangedAudioParameter* MockBackend::parameter(const juce::String& id) {
   return params_->find(id);

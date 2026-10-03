@@ -55,6 +55,11 @@ void TONE3000Processor::queueActiveModelLoad(ChainBlock& block) {
     block.modelLoading = false;
   };
 
+  if (block.type == ChainBlockType::PLUGIN) {
+    queuePluginLoad(block.id);
+    return;
+  }
+
   juce::DynamicObject* toneObj = block.toneVar.getDynamicObject();
   if (toneObj == nullptr) {
     bail("stored tone JSON did not parse");
@@ -145,6 +150,28 @@ void TONE3000Processor::reconcileChainFromTree(const juce::ValueTree& chainState
     applyBlockSettings(*block, blockState);
 
     if (type == ChainBlockType::INSERT) {
+      target.push_back(std::move(block));
+      continue;
+    }
+
+    if (type == ChainBlockType::PLUGIN) {
+      const juce::String toneJson = blockState.getProperty("toneJson").toString();
+      const bool samePlugin = block->toneVar.isObject() && block->toneJson == toneJson;
+      if (!samePlugin)
+        setToneOnBlock(*block, 0, toneJson, juce::JSON::parse(toneJson));
+      if (samePlugin && block->loaded && block->pluginInstance != nullptr) {
+        // Reused live instance: restore its state in place (undo of an edit
+        // made in the plugin's editor) rather than re-instantiating.
+        if (block->pluginState.getSize() > 0 &&
+            block->pluginState != currentPluginState(*block))
+          block->pluginInstance->setStateInformation(
+              block->pluginState.getData(), static_cast<int>(block->pluginState.getSize()));
+      } else if (!block->modelLoading) {
+        block->loaded = false;
+        block->loadFailed = false;
+        block->modelLoading = true;
+        queuePluginLoad(block->id);
+      }
       target.push_back(std::move(block));
       continue;
     }

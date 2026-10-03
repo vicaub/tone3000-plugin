@@ -186,6 +186,12 @@ std::map<Key, String> buildTable() {
       U("Load File: pick a local .nam or IR .wav file to load here. No account needed.");
   t[Key::loadFolderTile] =
       U("Load Folder: pick a folder of .nam or .wav files; loads as one multi-model block.");
+  t[Key::addPluginTile] =
+      U("Add Plugin: put one of your installed VST3 / AU effects in this slot.");
+  t[Key::openPluginEditor] = U("Open Editor: show this plugin's own controls in a window.");
+  t[Key::pluginHosting] =
+      U("Third-party plugins: lets chain slots hold VST3 / AU effects installed on this computer.");
+  t[Key::scanPlugins] = U("Scan: look for installed VST3 / AU effects.");
   t[Key::blockPower] = U("Power: bypass this block.");
   t[Key::retryLoad] = U("Retry: re-download this model.");
   t[Key::swapTone] = U("Swap: replace this tone, keeping its slot.");

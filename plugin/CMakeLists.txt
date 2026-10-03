@@ -43,6 +43,10 @@ option(T3K_BUILD_UI_TESTBED "Build the UI testbed (UiTestbed) and register its s
 option(BUILD_AAX "Build AAX (Avid) format" ON)
 option(BUILD_LV2 "Build LV2 format (native Linux plugin standard)" ON)
 option(BUILD_CLAP "Build CLAP format (via clap-juce-extensions)" ON)
+# Hosted third-party plugin blocks (plugin/docs/plugin-hosting.md): VST3 on
+# desktop, plus AU on macOS. Never on iOS (no VST3 there; AUv3 hosting is a
+# separate project).
+option(T3K_PLUGIN_HOSTING "Host third-party VST3/AU effects as chain blocks" ON)
 set(_plugin_formats "VST3") # Default plugin format
 
 # iOS has no desktop plugin host, so none of the plugin formats apply: VST3,
@@ -345,6 +349,9 @@ target_sources(${PROJECT_NAME}
         src/ProcessorPresets.cpp
         src/ProcessorState.cpp
         src/ProcessorModelLoader.cpp
+        src/ProcessorPluginHost.cpp
+        include/PluginHost.h
+        src/PluginHost.cpp
         include/ChainDomain.h
         include/NamEngine.h
         src/NamEngine.cpp
@@ -491,6 +498,14 @@ add_dependencies(${PROJECT_NAME} NAM)
 # juce_gui_extra's WebBrowserComponent (and its WebKitGTK / WebView2 runtime
 # dependencies) stays out of the build. Likewise the vendored libwebp
 # (JUCE 9.0.3+): nothing here reads or writes WebP.
+if (T3K_PLUGIN_HOSTING AND NOT T3K_IOS)
+    target_compile_definitions(${PROJECT_NAME}
+        PUBLIC
+            JUCE_PLUGINHOST_VST3=1
+            $<$<PLATFORM_ID:Darwin>:JUCE_PLUGINHOST_AU=1>
+    )
+endif()
+
 target_compile_definitions(${PROJECT_NAME}
     PUBLIC
         JUCE_WEB_BROWSER=0

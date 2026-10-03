@@ -559,7 +559,7 @@ double TONE3000Processor::getTailLengthSeconds() const {
   //    reference NAM plugin reports the same allowance for VST3 tail checks.
   const double irTailSeconds = irTailBaseSamples.load() / kChainBaseSampleRate;
   const double dcBlockerTailSeconds = 10.0 / 5.0;
-  return std::max(irTailSeconds, dcBlockerTailSeconds);
+  return std::max({irTailSeconds, dcBlockerTailSeconds, pluginTailSeconds.load()});
 }
 
 // The host program API (getNumPrograms and friends) lives in
@@ -607,9 +607,21 @@ void TONE3000Processor::prepareChain(std::vector<std::unique_ptr<ChainBlock>>& b
     // Every IR block keeps its base-rate island in step with the live factor
     // (bypass at ×1). Prepared even while unloaded; a later engine apply
     // re-prepares anyway, this just keeps the invariant simple.
-    if (block->type == ChainBlockType::IR)
+    if (block->type == ChainBlockType::IR || block->type == ChainBlockType::PLUGIN)
       block->irBaseRateIsland.prepare(chainOversampleFactor.load(),
                                       juce::jmax(1, chainBaseBlockSize()));
+
+    // Hosted plugins always run at the base rate; only the base block size
+    // can move under them.
+    if (block->type == ChainBlockType::PLUGIN && block->pluginInstance != nullptr) {
+      const int maxFrames = juce::jmax(1, chainBaseBlockSize());
+      if (block->pluginScratch.getNumSamples() < maxFrames) {
+        block->pluginInstance->releaseResources();
+        block->pluginInstance->prepareToPlay(kChainBaseSampleRate, maxFrames);
+        block->pluginScratch.setSize(block->pluginScratch.getNumChannels(), maxFrames, false,
+                                     true, false);
+      }
+    }
 
     // Initialize per-block smoothers (input gain, output gain, mix, NAM
     // normalization). The RT path only ever calls setTargetValue on these;
@@ -638,11 +650,16 @@ void TONE3000Processor::prepareChain(std::vector<std::unique_ptr<ChainBlock>>& b
 // stereo toggles can never truncate a host's tail rendering mid-session.
 void TONE3000Processor::refreshIrTailLength() {
   int maxSamples = 0;
+  double maxPluginTail = 0.0;
   for (const auto& l : lanes)
-    for (const auto& b : l)
+    for (const auto& b : l) {
       if (b->type == ChainBlockType::IR && b->convolverMono != nullptr)
         maxSamples = std::max(maxSamples, b->irLengthBaseSamples);
+      if (b->type == ChainBlockType::PLUGIN && b->pluginInstance != nullptr)
+        maxPluginTail = std::max(maxPluginTail, b->pluginTailSeconds);
+    }
   irTailBaseSamples.store(maxSamples);
+  pluginTailSeconds.store(maxPluginTail);
 }
 
 // Constant-power pan gains for a chain at position `pan` (0 = hard left,
@@ -1410,6 +1427,33 @@ void TONE3000Processor::processChainOnBuffer(std::vector<std::unique_ptr<ChainBl
       } catch (const std::exception& e) {
         DBG("Error in IR processing for block " << block->id << ": " << e.what());
       }
+    } else if (block->type == ChainBlockType::PLUGIN && block->pluginInstance != nullptr) {
+      // Hosted plugin at the base rate inside the block's island (see
+      // plugin/docs/plugin-hosting.md). The instance owns `scratch` channels
+      // (>= 2, sized at load): the lane's channels are copied in, a mono
+      // lane's channel 0 is duplicated so stereo-only plugins work, and the
+      // lane's channels are copied back out.
+      auto& instance = *block->pluginInstance;
+      auto& scratch = block->pluginScratch;
+      auto& midi = block->pluginMidi;
+      block->irBaseRateIsland.processBaseRateIsland(
+          buffer.getArrayOfWritePointers(), numChannels, numSamples,
+          [&instance, &scratch, &midi, numChannels](float* const* baseChannels, int baseFrames) {
+            const int instanceChannels =
+                juce::jmax(instance.getTotalNumInputChannels(), instance.getTotalNumOutputChannels());
+            for (int ch = 0; ch < scratch.getNumChannels(); ++ch)
+              scratch.copyFrom(ch, 0, baseChannels[juce::jmin(ch, numChannels - 1)], baseFrames);
+            juce::AudioBuffer<float> view(scratch.getArrayOfWritePointers(),
+                                          juce::jmin(instanceChannels, scratch.getNumChannels()),
+                                          baseFrames);
+            midi.clear();
+            instance.processBlock(view, midi);
+            const int outChannels = juce::jmax(1, instance.getTotalNumOutputChannels());
+            for (int ch = 0; ch < numChannels; ++ch)
+              juce::FloatVectorOperations::copy(baseChannels[ch],
+                                                scratch.getReadPointer(juce::jmin(ch, outChannels - 1)),
+                                                baseFrames);
+          });
     }
 
     // EQ in the POST position (default): shapes the wet signal after the

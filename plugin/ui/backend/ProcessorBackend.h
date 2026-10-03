@@ -6,6 +6,8 @@
 
 #include <juce_gui_basics/juce_gui_basics.h>
 
+#include <map>
+
 #include "Backend.h"
 #include "Processor.h"
 #include "StandaloneAudioSettings.h"
@@ -114,6 +116,15 @@ public:
   bool openDateTimeSettings() override;
   bool forwardKeyToHost(HostKey key) override;
 
+  bool canHostPlugins() override;
+  bool pluginHostingEnabled() override;
+  void setPluginHostingEnabled(bool enabled) override;
+  std::vector<HostedPluginInfo> hostedPlugins() override;
+  void scanPlugins(std::function<void(int)> onDone) override;
+  bool isScanningPlugins() override;
+  std::string loadPlugin(const juce::String& identifier, const std::string& targetInsertId) override;
+  bool openPluginEditor(const std::string& blockId) override;
+
 private:
   // Standalone-only calls resolve to void in hosts.
   template <typename Fn>
@@ -124,6 +135,9 @@ private:
   TONE3000Processor& processor_;
   juce::Component& peerHost_;
   std::unique_ptr<StandaloneAudioSettings> audioSettings_;
+  // One native window per hosted plugin block, keyed by block id. Closed
+  // with the editor, and when the instance behind one goes away.
+  std::map<std::string, std::unique_ptr<juce::DocumentWindow>> pluginWindows_;
 };
 
 }  // namespace t3k::ui

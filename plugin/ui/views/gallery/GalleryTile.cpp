@@ -59,9 +59,20 @@ void GalleryTile::openMenu(juce::Point<int> at) {
     old->close();
     juce::MessageManager::callAsync([old] { delete old; });
   }
+  menuPoint_ = at;
   menu_ = std::make_unique<ContextMenu>(menuItems());
   menu_->onDismiss = [this] { menuDismissedMs_ = juce::Time::currentTimeMillis(); };
   menu_->openAtPoint(*this, at);
+}
+
+void GalleryTile::openSubmenu(std::vector<ContextMenu::Item> items, int width) {
+  // Called from a row of the current sheet, which is mid-click: retire it
+  // asynchronously like openMenu does.
+  if (auto* old = menu_.release())
+    juce::MessageManager::callAsync([old] { delete old; });
+  menu_ = std::make_unique<ContextMenu>(std::move(items), width);
+  menu_->onDismiss = [this] { menuDismissedMs_ = juce::Time::currentTimeMillis(); };
+  menu_->openAtPoint(*this, menuPoint_);
 }
 
 void GalleryTile::closeMenu() {

@@ -94,6 +94,7 @@ private:
 
   bool isNam() const { return block_.tone.isNam(); }
   bool isLocal() const { return block_.tone.local; }
+  bool isPlugin() const { return block_.tone.isPlugin(); }
   bool authenticated() const { return services_.session.authenticated(); }
   bool modelBusy() const { return block_.modelLoading || (!block_.loaded && !block_.loadFailed); }
   bool normalizeOverridden() const;
@@ -127,6 +128,7 @@ private:
   ChromeIconButton info_{Icon::Info, ChromeIconButton::Tone::plain, help::Key::toneInfo};
   ChromeIconButton share_{Icon::Share, ChromeIconButton::Tone::plain, help::Key::shareTone};
   ChromeIconButton swap_{Icon::ArrowLeftRight, ChromeIconButton::Tone::plain, help::Key::swapTone};
+  ChromeIconButton editor_{Icon::ExternalLink, ChromeIconButton::Tone::plain, help::Key::openPluginEditor};
   ChromeIconButton remove_{Icon::Trash2, ChromeIconButton::Tone::plain, help::Key::removeBlock};
 
   // Body (tone / info views live in `body_`, which dims while bypassed)

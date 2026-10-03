@@ -137,9 +137,16 @@ public:
   bool openDateTimeSettings() override { return true; }
   bool forwardKeyToHost(HostKey) override { return false; }
 
+  // Hosted plugins: on when the scenario carries a `hostedPlugins` list.
+  bool canHostPlugins() override { return hostedPlugins_.isArray(); }
+  bool pluginHostingEnabled() override { return hostedPlugins_.isArray(); }
+  std::vector<HostedPluginInfo> hostedPlugins() override;
+  bool openPluginEditor(const std::string&) override { return true; }
+
 private:
   static juce::var okResult();
   void bumpChain();
+  juce::var hostedPlugins_;
   void notifyMidiMapChanged();
 
   // Parameters need a processor for change gestures; this one has no audio.

@@ -15,7 +15,7 @@ const std::map<juce::String, juce::String> kGear = {
 };
 
 const std::map<juce::String, juce::String> kFormat = {
-    {"nam", "NAM"}, {"ir", "IR"}, {"aida-x", "AIDA-X"}, {"aa-snapshot", "Snapshot"}, {"proteus", "Proteus"},
+    {"nam", "NAM"}, {"ir", "IR"}, {"aida-x", "AIDA-X"}, {"aa-snapshot", "Snapshot"}, {"proteus", "Proteus"}, {"plugin", "Plugin"},
 };
 
 // Up to `significant` significant digits, trailing zeros dropped ("12.3",

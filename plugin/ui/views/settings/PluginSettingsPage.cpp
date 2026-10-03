@@ -128,6 +128,12 @@ PluginSettingsPage::PluginSettingsPage(Services& services)
       multiCore_("Multi-Core Processing",
                  "Spreads the work across CPU cores for more headroom: stereo chains process in parallel, and "
                  "oversampled NAM models split across cores. Doesn't change the sound."),
+      pluginHosting_("Third-Party Plugins",
+                     "Lets chain slots hold VST3 / AU effects installed on this computer (modulation, delay, "
+                     "reverb...). A plugin that misbehaves can crash the plugin and your DAW."),
+      scanPlugins_("Scan for plugins", FormButton::cta()),
+      scanPluginsBox_(scanPlugins_, static_cast<float>(scanPlugins_.preferredHeight())),
+      pluginStatus_(juce::String(), form::kSmallPx),
       midi_("MIDI Mapping",
             "Control the plugin from pedals and knobs. Mappings are saved with the plugin and work in your DAW too."),
       midiSection_(services),
@@ -196,6 +202,29 @@ PluginSettingsPage::PluginSettingsPage(Services& services)
   multiCore_.onChange = [this](bool on) { services_.chain.setMultiCore(on); };
   add(multiCore_);
 
+  // Third-party plugins.
+  if (services_.backend.canHostPlugins()) {
+    pluginHosting_.content().setGap(form::kControlGap);
+    pluginHosting_.content().add(scanPluginsBox_);
+    pluginHosting_.content().add(pluginStatus_);
+    pluginHosting_.onChange = [this](bool on) {
+      services_.backend.setPluginHostingEnabled(on);
+      // First enable on a machine with no scan yet: scan right away.
+      if (on && services_.backend.hostedPlugins().empty() && !services_.backend.isScanningPlugins())
+        scanPlugins_.onClick();
+    };
+    scanPlugins_.onClick = [this] {
+      syncPluginStatus("Scanning… ");
+      juce::Component::SafePointer<PluginSettingsPage> self(this);
+      services_.backend.scanPlugins([self](int) {
+        if (self != nullptr) self->syncPluginStatus();
+      });
+    };
+    pluginHosting_.setValue(services_.backend.pluginHostingEnabled(), false);
+    syncPluginStatus(services_.backend.isScanningPlugins() ? "Scanning… " : "");
+    add(pluginHosting_);
+  }
+
   // MIDI Mapping.
   midi_.setInlineLabel();
   midi_.content().add(midiSection_);
@@ -242,6 +271,11 @@ PluginSettingsPage::PluginSettingsPage(Services& services)
   syncParams();
   syncFooter();
   chainChanged(services_.chain.state());
+}
+
+void PluginSettingsPage::syncPluginStatus(const juce::String& prefix) {
+  const auto count = static_cast<int>(services_.backend.hostedPlugins().size());
+  pluginStatus_.setText(prefix + juce::String(count) + (count == 1 ? " effect found" : " effects found"));
 }
 
 PluginSettingsPage::~PluginSettingsPage() {

@@ -8,6 +8,10 @@
 
 namespace t3k::ui {
 
+namespace {
+constexpr int kPluginPickerWidth = 260;
+}
+
 AddTile::Routing AddTile::routingFor(int index, int count) {
   if (count <= 1) return Routing::none;
   if (index == 0) return Routing::right;
@@ -39,6 +43,25 @@ std::vector<ContextMenu::Item> AddTile::menuItems() {
        [this] { if (onPaste) onPaste(blockId()); }, /*disabled=*/!canPaste_},
   };
   for (auto& item : localLoadItems()) items.push_back(std::move(item));
+  auto& backend = services().backend;
+  if (backend.canHostPlugins() && backend.pluginHostingEnabled())
+    items.push_back({"Add Plugin…", Icon::Plus, help::Key::addPluginTile,
+                     [this] { openSubmenu(pluginPickerItems(), kPluginPickerWidth); }});
+  return items;
+}
+
+std::vector<ContextMenu::Item> AddTile::pluginPickerItems() {
+  std::vector<ContextMenu::Item> items;
+  for (const auto& plugin : services().backend.hostedPlugins()) {
+    const juce::String label = plugin.name + "  ·  " + plugin.format;
+    items.push_back({label, Icon::Plus, help::Key::addPluginTile,
+                     [this, id = plugin.identifier] {
+                       services().backend.loadPlugin(id, blockId());
+                     }});
+  }
+  if (items.empty())
+    items.push_back({"No plugins found: scan in Settings", Icon::Settings,
+                     help::Key::addPluginTile, nullptr, /*disabled=*/true});
   return items;
 }
 

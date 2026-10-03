@@ -70,6 +70,9 @@ protected:
   bool dropArmed() const { return dropArmed_; }
   bool menuOpen() const { return menu_ != nullptr && menu_->isOpen(); }
   Services& services() { return services_; }
+  // Replace the open action sheet with `items` at the same point (a submenu
+  // step, e.g. Add Plugin… → the plugin list).
+  void openSubmenu(std::vector<ContextMenu::Item> items, int width);
 
 private:
   static constexpr int kLongPressMs = 500;
@@ -101,6 +104,7 @@ private:
   juce::int64 menuDismissedMs_ = 0;
   DelayedCall hold_;
   std::unique_ptr<ContextMenu> menu_;
+  juce::Point<int> menuPoint_;
 };
 
 }  // namespace t3k::ui

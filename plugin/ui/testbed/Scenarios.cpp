@@ -104,6 +104,19 @@ const std::map<juce::String, Drive>& drives() {
          clickByHelp(root, "'02 Vox AC30/6 Top Boost.", /*right=*/true);
          wait(200);
        }},
+      {"chrome-insert-menu-plugins",
+       [](PluginRoot& root, MockBackend&) {
+         clickByHelp(root, "Add Tone", /*right=*/true);
+         wait(200);
+       }},
+      {"chrome-plugin-picker",
+       [](PluginRoot& root, MockBackend&) {
+         clickByHelp(root, "Add Tone", /*right=*/true);
+         wait(200);
+         clickByHelp(root, "Add Plugin");
+         wait(300);
+       }},
+      {"main-detail-plugin", [](PluginRoot&, MockBackend&) { wait(300); }},
       // The detail card opens from the seeded t3k.detailBlockId; the suite's
       // tile click (the web dropped the seed before the chain arrived) only
       // re-opens it, leaving no hover behind once the gallery is gone.

@@ -32,6 +32,8 @@ protected:
   std::vector<ContextMenu::Item> menuItems() override;
 
 private:
+  std::vector<ContextMenu::Item> pluginPickerItems();
+
   Routing routing_ = Routing::none;
   bool canPaste_ = false;
 };

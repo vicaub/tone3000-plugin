@@ -290,6 +290,16 @@ std::string TONE3000Processor::loadTone(const juce::String& toneJsonString,
   DBG("Created tone block: " << parsed.toneId << " (block: " << blockId << ")");
   DBG("Queueing first model for background loading: " << parsed.modelName);
 
+  placeInInsertSlot(std::move(block), targetInsertId);
+
+  bumpChainRevision();
+  queueToneLoad(blockId, parsed.firstModelId, parsed.modelUrl, parsed.modelName, parsed.type);
+
+  return blockId;
+}
+
+void TONE3000Processor::placeInInsertSlot(std::unique_ptr<ChainBlock> block,
+                                          const std::string& targetInsertId) {
   // Resolve the slot the tone lands in: the insert the user clicked (looked
   // up across both lanes; ids are globally unique), or the active lane's
   // first insert when the id is stale/absent (chain edited mid-flow, or an
@@ -322,11 +332,6 @@ std::string TONE3000Processor::loadTone(const juce::String& toneJsonString,
   else
     targetLane->push_back(std::move(block));
   alignBranchLaneLengths();
-
-  bumpChainRevision();
-  queueToneLoad(blockId, parsed.firstModelId, parsed.modelUrl, parsed.modelName, parsed.type);
-
-  return blockId;
 }
 
 std::string TONE3000Processor::landToneBlock(std::unique_ptr<ChainBlock> block,

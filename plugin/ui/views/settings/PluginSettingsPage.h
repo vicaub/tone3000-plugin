@@ -67,6 +67,13 @@ private:
   SelectField osRate_{"Oversampling rate"};
   ToggleRow multiCore_;
 
+  // Hosted third-party plugins (only on builds that can host).
+  ToggleRow pluginHosting_;
+  FormButton scanPlugins_;
+  FormBox scanPluginsBox_;
+  Paragraph pluginStatus_;
+  void syncPluginStatus(const juce::String& prefix = {});
+
   FieldRow midi_;
   MidiMapSection midiSection_;
 

@@ -104,6 +104,8 @@ struct ToneSummary {
   // Models this plugin loads: A2 for NAM, otherwise models_count.
   int catalogModelCount() const;
   bool isNam() const { return format.equalsIgnoreCase("nam"); }
+  // A hosted third-party VST3/AU effect, not a TONE3000 tone.
+  bool isPlugin() const { return format.equalsIgnoreCase("plugin"); }
 };
 
 struct ChainItem {

@@ -164,6 +164,8 @@ void BlockCard::buildHeader() {
   addAndMakeVisible(swap_);
   remove_.onClick = [this] { services_.chain.removeBlock(block_.blockId); };
   addAndMakeVisible(remove_);
+  editor_.onClick = [this] { services_.backend.openPluginEditor(block_.blockId); };
+  addChildComponent(editor_);
 }
 
 void BlockCard::buildBody() {
@@ -343,9 +345,13 @@ void BlockCard::syncHeader() {
   eqView_->select(eqViewMode_ == BlockEqView::View::sliders ? 0 : 1);
   for (auto* c : std::initializer_list<juce::Component*>{&eqPower_, &preGroup_, eqView_.get()}) c->setVisible(showEq_);
 
-  info_.setVisible(!isLocal());
+  // Plugin blocks have no catalog page: no info/share, an editor button instead.
+  info_.setVisible(!isLocal() && !isPlugin());
   info_.setOpen(showInfo_);
-  share_.setVisible(!isLocal());
+  share_.setVisible(!isLocal() && !isPlugin());
+  editor_.setVisible(isPlugin());
+  swap_.setVisible(!isPlugin());
+  editor_.setEnabled(block_.loaded);
   layoutHeader(getLocalBounds().reduced(1).removeFromTop(kHeaderHeight));
 }
 
@@ -463,6 +469,7 @@ void BlockCard::setBodyView() {
   if (eqEditor_) eqEditor_->setVisible(view == Body::eq);
   for (auto* c : std::initializer_list<juce::Component*>{&inMeter_, &outMeter_, &in_, &out_, &mix_, &selectWrap_})
     c->setVisible(view == Body::tone);
+  selectWrap_.setVisible(view == Body::tone && !isPlugin());  // a plugin has no models
   normalizeWrap_.setVisible(view == Body::tone && isNam() &&
                             services_.prefs.getBool(UiPrefs::kShowBlockNormalizeControl, false));
   imageFrame_.setVisible(view != Body::eq);
@@ -515,7 +522,7 @@ void BlockCard::layoutHeader(juce::Rectangle<int> header) {
   // Right cluster, laid right to left; EQ stays rightmost in its pill so
   // opening grows left only.
   int right = row.getRight();
-  for (auto* b : std::initializer_list<juce::Component*>{&remove_, &swap_, &share_, &info_}) {
+  for (auto* b : std::initializer_list<juce::Component*>{&remove_, &swap_, &share_, &info_, &editor_}) {
     if (!b->isVisible()) continue;
     centreAt(*b, right - b->getWidth());
     right -= b->getWidth() + kHeaderGap;

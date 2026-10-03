@@ -148,6 +148,27 @@ public:
   enum class HostKey { space, enter };
   virtual bool forwardKeyToHost(HostKey key) = 0;
 
+  // Hosted third-party plugins (plugin/docs/plugin-hosting.md). Defaults
+  // describe a build without hosting, so backends that don't host (the
+  // testbed's mock) need no stubs.
+  struct HostedPluginInfo {
+    juce::String identifier, name, vendor, format;
+  };
+  virtual bool canHostPlugins() { return false; }
+  virtual bool pluginHostingEnabled() { return false; }
+  virtual void setPluginHostingEnabled(bool) {}
+  virtual std::vector<HostedPluginInfo> hostedPlugins() { return {}; }
+  // `onDone` runs on the message thread with the number of effects found.
+  virtual void scanPlugins(std::function<void(int)> onDone) {
+    if (onDone)
+      onDone(0);
+  }
+  virtual bool isScanningPlugins() { return false; }
+  virtual std::string loadPlugin(const juce::String&, const std::string&) { return {}; }
+  // Show the plugin's own editor in a native window; false when the block
+  // has no live instance or the plugin has no editor.
+  virtual bool openPluginEditor(const std::string&) { return false; }
+
 protected:
   juce::ListenerList<Listener> listeners;
 };

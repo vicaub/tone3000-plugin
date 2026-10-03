@@ -208,6 +208,12 @@ juce::ValueTree TONE3000Processor::serializeBlockSettings(const ChainBlock& bloc
     blockState.appendChild(block.eq.toValueTree(), nullptr);
   }
 
+  if (block.type == ChainBlockType::PLUGIN) {
+    const juce::MemoryBlock state = currentPluginState(block);
+    if (state.getSize() > 0)
+      blockState.setProperty("pluginState", state, nullptr);
+  }
+
   return blockState;
 }
 
@@ -232,6 +238,13 @@ void TONE3000Processor::applyBlockSettings(ChainBlock& block, const juce::ValueT
     // domain (fixed rate).
     block.eq.restoreFromValueTree(blockState.getChildWithName("Eq"));
     block.eq.prepare(chainSampleRate());
+  }
+
+  if (block.type == ChainBlockType::PLUGIN) {
+    if (const auto* state = blockState.getProperty("pluginState").getBinaryData())
+      block.pluginState = *state;
+    else
+      block.pluginState.reset();
   }
 }
 

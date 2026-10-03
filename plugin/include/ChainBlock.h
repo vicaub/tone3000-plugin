@@ -11,13 +11,15 @@
 #include "ChainOversampler.h"
 #include "NamEngine.h"
 
-// Chain block types
-enum class ChainBlockType { NAM, IR, INSERT };
+// Chain block types. PLUGIN hosts a third-party VST3/AU effect (see
+// plugin/docs/plugin-hosting.md).
+enum class ChainBlockType { NAM, IR, INSERT, PLUGIN };
 
 inline juce::String chainBlockTypeToString(ChainBlockType type) {
   switch (type) {
     case ChainBlockType::NAM: return "nam";
     case ChainBlockType::INSERT: return "insert";
+    case ChainBlockType::PLUGIN: return "plugin";
     case ChainBlockType::IR: break;
   }
   return "ir";
@@ -26,6 +28,7 @@ inline juce::String chainBlockTypeToString(ChainBlockType type) {
 inline ChainBlockType chainBlockTypeFromString(const juce::String& s) {
   if (s == "nam") return ChainBlockType::NAM;
   if (s == "insert") return ChainBlockType::INSERT;
+  if (s == "plugin") return ChainBlockType::PLUGIN;
   return ChainBlockType::IR;
 }
 
@@ -192,6 +195,22 @@ struct ChainBlock {
   bool irIsLong{false};
   juce::LinearSmoothedValue<float> irNormalizationSmoother;
   float irNormalizationGainLinear{1.0f};
+
+  // Hosted plugin (PLUGIN blocks). The instance runs at kChainBaseSampleRate
+  // behind irBaseRateIsland, like the IR convolvers, prepared for at most
+  // chainBaseBlockSize() frames. `pluginScratch` gives a mono lane the
+  // second channel a stereo plugin expects (and absorbs extra plugin
+  // channels), sized at prepare time so the audio path never allocates.
+  std::unique_ptr<juce::AudioPluginInstance> pluginInstance;
+  juce::AudioBuffer<float> pluginScratch;
+  juce::MidiBuffer pluginMidi;
+  // The plugin's opaque state (getStateInformation). Source of truth while
+  // no instance is live (not installed, hosting off, still loading); the
+  // live instance is the source otherwise and refreshes this on every
+  // serialize (see capturePluginState). Persisted with the block.
+  juce::MemoryBlock pluginState;
+  // Base-rate tail of the hosted plugin, for getTailLengthSeconds.
+  double pluginTailSeconds{0.0};
 
   // Per-block loudness normalization toggle, NAM only (off = the capture's
   // true level, which is real information; IR normalization is always on

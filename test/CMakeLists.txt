@@ -35,6 +35,7 @@ target_sources(DspTests PRIVATE
     src/padless_wav_tests.cpp
     src/pitch_shift_tests.cpp
     src/preset_tests.cpp
+    src/plugin_host_tests.cpp
     src/processor_tests.cpp
     src/spread_tests.cpp
     src/state_cache_tests.cpp
@@ -59,6 +60,8 @@ target_sources(DspTests PRIVATE
     ../plugin/src/ProcessorModelLoader.cpp
     ../plugin/src/ProcessorPresets.cpp
     ../plugin/src/ProcessorState.cpp
+    ../plugin/src/ProcessorPluginHost.cpp
+    ../plugin/src/PluginHost.cpp
     ../plugin/src/Spread.cpp
     # Processor.cpp's constructor calls StandaloneStateAutosave::install().
     # Always the portable no-op stub here, never the .mm: the real observer

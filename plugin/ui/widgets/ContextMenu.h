@@ -31,7 +31,8 @@ public:
   // Visual-px nudge past the cursor tip.
   static constexpr int kCursorOffset = 6;
 
-  explicit ContextMenu(std::vector<Item> items);
+  // `width` widens the panel for long labels (the hosted-plugin picker).
+  explicit ContextMenu(std::vector<Item> items, int width = kWidth);
   ~ContextMenu() override;
 
   // Open with the top-left just past `point` (in `context` coordinates).

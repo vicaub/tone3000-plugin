@@ -1,5 +1,6 @@
 #include "ProcessorBackend.h"
 
+#include "PluginHost.h"
 #include "WindowKeyEvents.h"
 
 namespace t3k::ui {
@@ -21,6 +22,8 @@ ProcessorBackend::ProcessorBackend(TONE3000Processor& processor, juce::Component
 }
 
 ProcessorBackend::~ProcessorBackend() {
+  // Plugin editors reference live instances; close them before anything else.
+  pluginWindows_.clear();
   // The mapper outlives the editor (it's the processor's): detach our hook.
   processor_.midiMapper.onChanged = nullptr;
   // Tear down the audio settings controller before the listeners it reports to.
@@ -304,6 +307,97 @@ bool ProcessorBackend::forwardKeyToHost(HostKey key) {
   if (auto* peer = peerHost_.getPeer())
     HostKeys::forwardKeyToHost(peer->getNativeHandle(),
                                key == HostKey::enter ? HostKeys::HostKey::enter : HostKeys::HostKey::space);
+  return true;
+}
+
+// Hosted plugins
+namespace {
+
+// A native window around a hosted plugin's own editor. It watches the
+// processor and closes itself when the block's instance is no longer the one
+// it was opened on (block removed, plugin reloaded by undo/preset), so the
+// editor never outlives the instance it draws.
+class PluginEditorWindow : public juce::DocumentWindow, private juce::Timer {
+public:
+  PluginEditorWindow(TONE3000Processor& processor, std::string blockId,
+                     juce::AudioPluginInstance& instance, std::function<void()> onClose)
+      : DocumentWindow(instance.getName(), juce::Colours::black,
+                       DocumentWindow::closeButton | DocumentWindow::minimiseButton),
+        processor_(processor),
+        blockId_(std::move(blockId)),
+        instance_(&instance),
+        onClose_(std::move(onClose)) {
+    setUsingNativeTitleBar(true);
+    auto* editor = instance.createEditorIfNeeded();
+    if (editor == nullptr)
+      editor = new juce::GenericAudioProcessorEditor(instance);
+    setContentOwned(editor, true);
+    setResizable(editor->isResizable(), false);
+    centreWithSize(getWidth(), getHeight());
+    setVisible(true);
+    startTimerHz(4);
+  }
+
+  ~PluginEditorWindow() override { clearContentComponent(); }
+
+  void closeButtonPressed() override { close(); }
+
+private:
+  void timerCallback() override {
+    if (processor_.getHostedPlugin(blockId_) != instance_)
+      close();
+  }
+  void close() {
+    stopTimer();
+    // Destroys this window; nothing may touch members afterwards.
+    juce::MessageManager::callAsync([cb = onClose_] { cb(); });
+  }
+
+  TONE3000Processor& processor_;
+  std::string blockId_;
+  juce::AudioPluginInstance* instance_;
+  std::function<void()> onClose_;
+};
+
+}  // namespace
+
+bool ProcessorBackend::canHostPlugins() { return PluginHost::get().isAvailable(); }
+bool ProcessorBackend::pluginHostingEnabled() { return PluginHost::get().isEnabled(); }
+void ProcessorBackend::setPluginHostingEnabled(bool enabled) {
+  PluginHost::get().setEnabled(enabled);
+}
+
+std::vector<Backend::HostedPluginInfo> ProcessorBackend::hostedPlugins() {
+  std::vector<HostedPluginInfo> out;
+  for (const auto& d : PluginHost::get().getKnownEffects())
+    out.push_back({d.createIdentifierString(), d.name, d.manufacturerName, d.pluginFormatName});
+  return out;
+}
+
+void ProcessorBackend::scanPlugins(std::function<void(int)> onDone) {
+  PluginHost::get().scanAsync(std::move(onDone));
+}
+bool ProcessorBackend::isScanningPlugins() { return PluginHost::get().isScanning(); }
+
+std::string ProcessorBackend::loadPlugin(const juce::String& identifier,
+                                         const std::string& targetInsertId) {
+  return processor_.loadPlugin(identifier, targetInsertId);
+}
+
+bool ProcessorBackend::openPluginEditor(const std::string& blockId) {
+  if (auto it = pluginWindows_.find(blockId); it != pluginWindows_.end()) {
+    it->second->toFront(true);
+    return true;
+  }
+  auto* instance = processor_.getHostedPlugin(blockId);
+  if (instance == nullptr)
+    return false;
+  juce::Component::SafePointer<juce::Component> alive(&peerHost_);
+  pluginWindows_[blockId] = std::make_unique<PluginEditorWindow>(
+      processor_, blockId, *instance, [this, alive, blockId] {
+        if (alive != nullptr)
+          pluginWindows_.erase(blockId);
+      });
   return true;
 }
 

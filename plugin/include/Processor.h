@@ -216,6 +216,15 @@ public:
   // (empty clipboard, or the right lane while mono).
   std::string pasteChainBlock(const juce::String& side, int index);
 
+  // Hosted third-party plugins (see plugin/docs/plugin-hosting.md).
+  // Add the scanned plugin named by `identifier`
+  // (PluginDescription::createIdentifierString) into an insert slot, same
+  // landing rules as loadTone. Returns the new block id, "" on failure.
+  std::string loadPlugin(const juce::String& identifier, const std::string& targetInsertId = {});
+  // The live instance of a loaded plugin block, for the editor window.
+  // Message thread only; nullptr for other blocks / not loaded.
+  juce::AudioPluginInstance* getHostedPlugin(const std::string& blockId);
+
   // TONE3000 OAuth access token. Updated by the UI after the Select flow and
   // again on every refresh. `fetchModelFromUrl` attaches it as a Bearer header
   // because the new TONE3000 model_url endpoints reject anonymous requests.
@@ -726,6 +735,18 @@ private:
   // hold chainMutex; getTailLengthSeconds reads the atomic lock-free.
   void refreshIrTailLength();
   std::atomic<int> irTailBaseSamples{0};
+  std::atomic<double> pluginTailSeconds{0.0};
+
+  // Hosted plugin blocks (see plugin/docs/plugin-hosting.md).
+  // Off-thread: instantiate the block's plugin and splice it in under the
+  // swap fade. A missing plugin (or hosting off) marks the block failed and
+  // leaves its stored state untouched.
+  void loadPluginInBackground(const std::string& blockId);
+  void queuePluginLoad(const std::string& blockId);
+  // The live instance's state when loaded (so snapshots/presets carry edits
+  // made in its editor), else the stored pluginState. chainMutex held,
+  // never on the audio thread.
+  static juce::MemoryBlock currentPluginState(const ChainBlock& block);
 
   // The chain the UI edits/adds to right now (Left in mono mode, or the active side in stereo).
   std::vector<std::unique_ptr<ChainBlock>>& activeChain();
@@ -747,6 +768,9 @@ private:
 
   // Find a block by id across both chains (ids are globally unique). Returns nullptr if absent.
   ChainBlock* findBlockById(const std::string& blockId);
+  // Land a new block on the insert `targetInsertId` (or the active lane's
+  // first insert when stale/absent), consuming it. chainMutex held.
+  void placeInInsertSlot(std::unique_ptr<ChainBlock> block, const std::string& targetInsertId);
 
   // Shared tail of duplicateChainBlock/pasteChainBlock: land a freshly built
   // tone block in `side` at `index` (an insert slot there is consumed,
